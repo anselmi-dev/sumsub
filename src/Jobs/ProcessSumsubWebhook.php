@@ -29,6 +29,9 @@ class ProcessSumsubWebhook implements ShouldQueue
         public readonly array $payload,
     ) {}
 
+    /**
+     * Handle the webhook payload and update the applicant status.
+     */
     public function handle(KycRepositoryInterface $repository): void
     {
         $applicantId = $this->payload['applicantId'] ?? null;
@@ -56,8 +59,10 @@ class ProcessSumsubWebhook implements ShouldQueue
             'raw_data'      => $this->payload,
         ]);
 
+        // Event to notify that the applicant status has changed
         event(new ApplicantStatusChanged($updatedApplicant, $this->payload));
 
+        // Check if the review answer is not null and if the review answer is not the same as the previous review answer
         if ($reviewAnswer !== null) {
             event(new ApplicantReviewed($updatedApplicant, $reviewAnswer, $this->payload));
         }

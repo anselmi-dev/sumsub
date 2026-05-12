@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 return [
     /*
     |--------------------------------------------------------------------------
@@ -56,6 +54,15 @@ return [
     | This route is registered automatically by the service provider.
     */
     'webhook_route' => env('SUMSUB_WEBHOOK_ROUTE', 'webhooks/sumsub'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Webhook Route Name
+    |--------------------------------------------------------------------------
+    | The named route used internally to reference the webhook endpoint.
+    | Override if the default name conflicts with your application routes.
+    */
+    'webhook_route_name' => env('SUMSUB_WEBHOOK_ROUTE_NAME', 'sumsub.webhook'),
 
     /*
     |--------------------------------------------------------------------------

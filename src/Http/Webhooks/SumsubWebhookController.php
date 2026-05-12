@@ -36,7 +36,7 @@ class SumsubWebhookController extends Controller
 
         dispatch($job);
 
-        return response('', 200);
+        return response('OK', 200);
     }
 
     /**
@@ -56,7 +56,9 @@ class SumsubWebhookController extends Controller
         }
 
         $receivedDigest = $request->header('X-App-Token', '');
+        
         $rawBody = $request->getContent();
+
         $expectedDigest = hash_hmac('sha256', $rawBody, $secret);
 
         return hash_equals($expectedDigest, (string) $receivedDigest);

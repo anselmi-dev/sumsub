@@ -1,14 +1,14 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
     "name": "anselmi-dev/sumsub",
-    "description": "Sumsub KYC integration package for Laravel",
+    "description": "Sumsub KYC integration package for Laravel with webhook processing and event notifications",
     "type": "library",
-    "keywords": ["laravel", "kyc", "sumsub", "identity-verification"],
+    "keywords": ["laravel", "kyc", "sumsub", "identity-verification", "webhook", "event"],
     "license": "MIT",
     "authors": [
         {
-            "name": "Infinety",
-            "email": "dev@infinety.es"
+            "name": "AnselmiDev",
+            "email": "anselmi.dev@gmail.com"
         }
     ],
     "require": {
