@@ -1,0 +1,52 @@
+{
+    "$schema": "https://getcomposer.org/schema.json",
+    "name": "anselmi-dev/sumsub",
+    "description": "Sumsub KYC integration package for Laravel",
+    "type": "library",
+    "keywords": ["laravel", "kyc", "sumsub", "identity-verification"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Infinety",
+            "email": "dev@infinety.es"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "illuminate/support": "^11.0|^12.0|^13.0",
+        "illuminate/http": "^11.0|^12.0|^13.0",
+        "illuminate/database": "^11.0|^12.0|^13.0",
+        "illuminate/queue": "^11.0|^12.0|^13.0",
+        "guzzlehttp/guzzle": "^7.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0|^10.0",
+        "pestphp/pest": "^3.0",
+        "pestphp/pest-plugin-laravel": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "AnselmiDev\\Sumsub\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AnselmiDev\\Sumsub\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "AnselmiDev\\Sumsub\\SumsubServiceProvider"
+            ],
+            "aliases": {
+                "Sumsub": "AnselmiDev\\Sumsub\\Facades\\Sumsub"
+            }
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
