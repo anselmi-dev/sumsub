@@ -23,6 +23,16 @@ interface SumsubClientInterface
     public function getApplicant(string $applicantId): array;
 
     /**
+     * Retrieve an existing applicant by the externalUserId used when creating it.
+     * Useful to recover from a 409 when the local DB record is missing.
+     *
+     * Sumsub endpoint: GET /resources/applicants/-;externalUserId={id}/one
+     *
+     * @return array<string, mixed>
+     */
+    public function getApplicantByExternalUserId(string $externalUserId): array;
+
+    /**
      * Generate a short-lived SDK access token for the Sumsub Web/Mobile SDK.
      *
      * @return array<string, mixed>  Contains 'token' and 'userId' keys

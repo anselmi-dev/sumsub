@@ -13,15 +13,22 @@ return new class extends Migration
         Schema::create('sumsub_applicants', function (Blueprint $table): void {
             $table->increments('id');
 
+            // SaaS mode: nullable tenant identifier (string to support UUID, int slug, etc.)
+            // Leave null when running in single-tenant mode.
+            $table->string('tenant_id')->nullable()->index()->comment('Tenant identifier for SaaS mode. Null in single-tenant.');
+
             // Must match the type of users.id — unsignedInteger for increments(), unsignedBigInteger for id().
             $table->unsignedInteger('user_id')->index();
-            $table->string('applicant_id')->unique()->comment('Sumsub applicant ID (e.g. 5cb56e8e0a975a35f333cb83)');
+            $table->string('applicant_id')->comment('Sumsub applicant ID (e.g. 5cb56e8e0a975a35f333cb83)');
             $table->string('level_name')->comment('KYC verification level name in Sumsub');
             $table->string('review_status')->nullable()->comment('e.g. init, pending, prechecked, queued, completed, onHold');
             $table->string('review_answer')->nullable()->comment('e.g. GREEN, RED, RETRY');
             $table->json('raw_data')->nullable()->comment('Full webhook or API payload for debugging');
 
             $table->timestamps();
+
+            // In SaaS mode applicant_id is unique per tenant, not globally.
+            $table->unique(['tenant_id', 'applicant_id']);
 
             $table->foreign('user_id')
                 ->references('id')

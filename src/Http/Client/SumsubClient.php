@@ -37,6 +37,13 @@ class SumsubClient implements SumsubClientInterface
         return $this->request('GET', "/resources/applicants/{$applicantId}/one");
     }
 
+    public function getApplicantByExternalUserId(string $externalUserId): array
+    {
+        $id = urlencode($externalUserId);
+
+        return $this->request('GET', "/resources/applicants/-;externalUserId={$id}/one");
+    }
+
     public function generateSdkToken(string $applicantId, string $levelName): array
     {
         $path = '/resources/accessTokens?userId='.urlencode($applicantId).'&levelName='.urlencode($levelName);

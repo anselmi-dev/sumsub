@@ -4,6 +4,8 @@ Laravel package for [Sumsub](https://sumsub.com) KYC (Know Your Customer) identi
 
 Handles applicant creation, SDK token generation and webhook processing out of the box, while staying fully replaceable via contracts.
 
+Supports both **single-tenant** and **SaaS / multi-tenant** deployments.
+
 ---
 
 ## Requirements
@@ -16,28 +18,6 @@ Handles applicant creation, SDK token generation and webhook processing out of t
 ---
 
 ## Installation
-
-### Local development (path repository)
-
-Add the path repository to your `composer.json`:
-
-```json
-"repositories": [
-    {
-        "type": "path",
-        "url": "../packages/anselmi-dev/sumsub",
-        "options": { "symlink": true }
-    }
-]
-```
-
-Then require the package:
-
-```bash
-composer require anselmi-dev/sumsub:@dev
-```
-
-### From Packagist (when published)
 
 ```bash
 composer require anselmi-dev/sumsub
@@ -64,6 +44,9 @@ SUMSUB_DEFAULT_LEVEL=basic-kyc-level
 SUMSUB_WEBHOOK_ROUTE=webhooks/sumsub
 SUMSUB_QUEUE_CONNECTION=redis
 SUMSUB_QUEUE_NAME=default
+
+# SaaS mode (optional, default: false)
+SUMSUB_SAAS_MODE=false
 ```
 
 You can find your **App Token** and **Secret Key** in the Sumsub dashboard under **Developer Tools → App Tokens**.
@@ -87,15 +70,16 @@ php artisan migrate
 
 ---
 
-## Usage
+## Single-tenant usage (default)
 
-### 1. Create an applicant
+No extra setup required. Use the `Sumsub` facade directly:
+
+### Create an applicant
 
 ```php
 use AnselmiDev\Sumsub\Facades\Sumsub;
 
 $applicant = Sumsub::createApplicant(auth()->user());
-// Returns a SumsubApplicant model
 ```
 
 You can pass a custom level name as the second argument:
@@ -106,9 +90,7 @@ $applicant = Sumsub::createApplicant(auth()->user(), 'advanced-kyc-level');
 
 If the user already has an applicant, the existing record is returned (idempotent).
 
----
-
-### 2. Generate an SDK token (for the frontend widget)
+### Generate an SDK token (for the frontend widget)
 
 ```php
 $token = Sumsub::generateSdkToken(auth()->user());
@@ -131,9 +113,7 @@ const snsWebSdkInstance = snsWebSdk
 snsWebSdkInstance.launch('#sumsub-websdk-container');
 ```
 
----
-
-### 3. Check the applicant status
+### Check the applicant status
 
 ```php
 use AnselmiDev\Sumsub\Models\SumsubApplicant;
@@ -146,15 +126,132 @@ $applicant->isApproved();  // review_answer === 'GREEN'
 $applicant->isRejected();  // review_answer === 'RED'
 ```
 
----
-
-### 4. Refresh applicant data from Sumsub
+### Refresh applicant data from Sumsub
 
 Syncs the local record with the latest status from the Sumsub API:
 
 ```php
 $applicant = Sumsub::refreshApplicant($applicant);
 ```
+
+---
+
+## SaaS / multi-tenant mode
+
+Enable SaaS mode when your application serves multiple tenants and you need to isolate their KYC data.
+
+### 1. Enable the flag
+
+```env
+SUMSUB_SAAS_MODE=true
+```
+
+Or in `config/sumsub.php`:
+
+```php
+'saas_mode' => true,
+```
+
+When `saas_mode` is `true`, the package automatically:
+
+- Stores a `tenant_id` on every `sumsub_applicants` row.
+- Scopes all repository queries to the current tenant — tenants never see each other's applicants.
+- Namespaces the `externalUserId` sent to Sumsub as `{tenant_id}:{user_id}` to prevent collisions across tenants sharing the same Sumsub project.
+
+### 2. Use `forTenant()` to switch context
+
+Call `Sumsub::forTenant()` at the start of any operation to set the active tenant:
+
+```php
+use AnselmiDev\Sumsub\Facades\Sumsub;
+
+// All tenants share one Sumsub project (data isolation only)
+$applicant = Sumsub::forTenant($tenant->id)
+                   ->createApplicant($user);
+
+// Each tenant has its own Sumsub project (separate credentials)
+$applicant = Sumsub::forTenant(
+                tenantId:  $tenant->id,
+                appToken:  $tenant->sumsub_app_token,
+                secretKey: $tenant->sumsub_secret_key,
+             )->createApplicant($user);
+```
+
+`forTenant()` returns a new `SumsubService` instance — it does not mutate the singleton, so it is safe to call in concurrent requests.
+
+### 3. Typical SaaS middleware pattern
+
+Resolve the tenant once per request and share the scoped service:
+
+```php
+// app/Http/Middleware/SetSumsubTenant.php
+
+use AnselmiDev\Sumsub\Services\SumsubService;
+use Closure;
+use Illuminate\Http\Request;
+
+class SetSumsubTenant
+{
+    public function handle(Request $request, Closure $next): mixed
+    {
+        $tenant = $request->user()?->tenant;
+
+        if ($tenant) {
+            app()->instance(
+                SumsubService::class,
+                app(SumsubService::class)->forTenant(
+                    tenantId:  (string) $tenant->id,
+                    appToken:  $tenant->sumsub_app_token,   // null = use global config
+                    secretKey: $tenant->sumsub_secret_key,  // null = use global config
+                )
+            );
+        }
+
+        return $next($request);
+    }
+}
+```
+
+Register the middleware in your HTTP kernel or route group, and then use the facade normally — it will always resolve the tenant-scoped instance:
+
+```php
+$applicant = Sumsub::createApplicant(auth()->user());
+```
+
+### 4. Webhook routing in SaaS mode
+
+**Shared Sumsub project (one webhook URL for all tenants)**
+
+No extra setup needed. All webhooks arrive at the same endpoint and are matched to the correct tenant via the `applicant_id` already stored in `sumsub_applicants.tenant_id`.
+
+**Per-tenant Sumsub project (one webhook URL per tenant)**
+
+Register tenant-specific routes in your host app, forwarding each to the package controller with the resolved tenant:
+
+```php
+// routes/api.php
+
+Route::post('webhooks/sumsub/{tenant}', function (Request $request, Tenant $tenant) {
+    // Temporarily override webhook_secret for this tenant's Sumsub project
+    config(['sumsub.webhook_secret' => $tenant->sumsub_webhook_secret]);
+
+    return app(\AnselmiDev\Sumsub\Http\Webhooks\SumsubWebhookController::class)($request);
+});
+```
+
+---
+
+## Comparison: single-tenant vs SaaS
+
+| Feature | Single-tenant | SaaS |
+|---|---|---|
+| `SUMSUB_SAAS_MODE` | `false` (default) | `true` |
+| `tenant_id` column | always `null` | populated automatically |
+| Repository scope | no scope | scoped to `tenant_id` |
+| `externalUserId` in Sumsub | `"{user_id}"` | `"{tenant_id}:{user_id}"` |
+| Credentials | one global set | per-tenant via `forTenant()` |
+| Webhook URL | single | shared or per-tenant |
+| Breaking change | none | none (nullable column) |
 
 ---
 
@@ -178,6 +275,13 @@ The controller validates the HMAC-SHA256 signature using `SUMSUB_WEBHOOK_SECRET`
 >     'webhooks/sumsub',
 > ];
 > ```
+
+You can customise both the URI and the route name:
+
+```env
+SUMSUB_WEBHOOK_ROUTE=webhooks/sumsub
+SUMSUB_WEBHOOK_ROUTE_NAME=sumsub.webhook
+```
 
 ---
 
@@ -281,9 +385,49 @@ class MyCustomKycRepository implements KycRepositoryInterface
 ```php
 use AnselmiDev\Sumsub\Facades\Sumsub;
 
+// SaaS helpers
+Sumsub::forTenant(string $tenantId, ?string $appToken = null, ?string $secretKey = null): SumsubService
+
+// Core methods
 Sumsub::createApplicant(Authenticatable $user, ?string $levelName = null): SumsubApplicant
 Sumsub::generateSdkToken(Authenticatable $user, ?string $levelName = null): array
 Sumsub::refreshApplicant(SumsubApplicant $applicant): SumsubApplicant
+```
+
+---
+
+## Local development
+
+### Installing via path repository
+
+If you are working on the package alongside your app, use a Composer path repository instead of Packagist:
+
+```json
+"repositories": [
+    {
+        "type": "path",
+        "url": "../packages/anselmi-dev/sumsub",
+        "options": { "symlink": true }
+    }
+]
+```
+
+```bash
+composer require anselmi-dev/sumsub:@dev
+```
+
+Composer creates a symlink, so any change to the package is reflected immediately in your app without re-running `composer update`.
+
+### Simulating webhooks
+
+Simulate a webhook event without hitting the real Sumsub API:
+
+```bash
+# Simulate a GREEN (approved) webhook
+php artisan sumsub:simulate-webhook --answer=GREEN --sync
+
+# Simulate a RED (rejected) for a specific applicant
+php artisan sumsub:simulate-webhook 5cb56e8e0a975a35f333cb83 --answer=RED
 ```
 
 ---

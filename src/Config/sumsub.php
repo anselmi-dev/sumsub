@@ -80,4 +80,21 @@ return [
     | The queue name to use for ProcessSumsubWebhook jobs.
     */
     'queue_name' => env('SUMSUB_QUEUE_NAME', 'default'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | SaaS Mode
+    |--------------------------------------------------------------------------
+    | When enabled, the package operates in multi-tenant mode:
+    |   - A `tenant_id` column is stored on every sumsub_applicants row.
+    |   - All repository queries are automatically scoped to the current tenant.
+    |   - `externalUserId` sent to Sumsub is namespaced as "{tenant_id}:{user_id}"
+    |     to avoid collisions across tenants sharing the same Sumsub project.
+    |   - Use `Sumsub::forTenant($id, $appToken, $secretKey)` to switch
+    |     per-tenant credentials at runtime.
+    |
+    | Set to false (default) for classic single-tenant usage — no changes needed
+    | compared to previous versions of this package.
+    */
+    'saas_mode' => env('SUMSUB_SAAS_MODE', false),
 ];

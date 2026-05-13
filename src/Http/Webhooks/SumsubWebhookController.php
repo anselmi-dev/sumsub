@@ -14,6 +14,8 @@ class SumsubWebhookController extends Controller
 {
     public function __invoke(Request $request): Response
     {
+        logger('Sumsub webhook received', ['request' => $request->all()]);
+        
         if (! $this->isValidSignature($request)) {
             Log::warning('[Sumsub] Invalid webhook signature', [
                 'ip' => $request->ip(),
@@ -56,7 +58,7 @@ class SumsubWebhookController extends Controller
         }
 
         $receivedDigest = $request->header('X-App-Token', '');
-        
+
         $rawBody = $request->getContent();
 
         $expectedDigest = hash_hmac('sha256', $rawBody, $secret);

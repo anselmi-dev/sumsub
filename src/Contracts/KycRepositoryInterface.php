@@ -10,16 +10,19 @@ interface KycRepositoryInterface
 {
     /**
      * Find an applicant record by host-app user ID.
+     * In SaaS mode the search is automatically scoped to the current tenant.
      */
     public function findByUserId(int|string $userId): ?SumsubApplicant;
 
     /**
      * Find an applicant record by Sumsub applicant ID.
+     * In SaaS mode the search is automatically scoped to the current tenant.
      */
     public function findByApplicantId(string $applicantId): ?SumsubApplicant;
 
     /**
      * Create a new applicant record.
+     * In SaaS mode `tenant_id` is injected automatically if not present in $data.
      *
      * @param  array<string, mixed>  $data
      */
