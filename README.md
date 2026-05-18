@@ -1,16 +1,16 @@
 # anselmi-dev/sumsub
 
-Paquete Laravel base para integrar la API de [Sumsub](https://sumsub.com) (KYC / verificación de identidad).
+Base Laravel package to integrate the [Sumsub](https://sumsub.com) API (KYC / identity verification).
 
-Proporciona lo necesario para operar con Sumsub: cliente HTTP firmado, creación de applicants, tokens del SDK, webhooks y eventos.
+Provides everything needed to work with Sumsub: signed HTTP client, applicant creation, SDK tokens, webhooks, and events.
 
-> **¿Usas Livewire?** Instala solo [`anselmi-dev/livewire-sumsub`](../livewire-sumsub) — incluye este paquete como dependencia y centraliza credenciales + widget en una sola instalación.
+> **Using Livewire?** Install [`anselmi-dev/livewire-sumsub`](https://github.com/anselmi-dev/livewire-sumsub) only — it includes this package as a dependency and centralizes credentials + widget in a single install.
 
 ---
 
-## Requisitos
+## Requirements
 
-| Dependencia | Versión |
+| Dependency | Version |
 |---|---|
 | PHP | ^8.3 |
 | Laravel | ^11.0 \| ^12.0 \| ^13.0 |
@@ -18,25 +18,25 @@ Proporciona lo necesario para operar con Sumsub: cliente HTTP firmado, creación
 
 ---
 
-## Instalación
+## Installation
 
 ```bash
-composer require anselmi-dev/sumsub
+composer require anselmi-dev/sumsub:^1.0
 ```
 
-El service provider se registra automáticamente vía Laravel package discovery.
+The service provider is registered automatically via Laravel package discovery.
 
 ---
 
-## Configuración
+## Configuration
 
-Publica el archivo de configuración:
+Publish the configuration file:
 
 ```bash
 php artisan vendor:publish --tag=sumsub-config
 ```
 
-Esto crea `config/sumsub.php`. Añade las variables en tu `.env`:
+This creates `config/sumsub.php`. Add the variables to your `.env`:
 
 ```env
 SUMSUB_APP_TOKEN=your-app-token
@@ -48,34 +48,34 @@ SUMSUB_WEBHOOK_ROUTE=webhooks/sumsub
 SUMSUB_WEBHOOK_ROUTE_NAME=sumsub.webhook
 ```
 
-Los jobs de webhook usan la cola por defecto de Laravel (`QUEUE_CONNECTION` en `config/queue.php`).
+Webhook jobs use Laravel's default queue (`QUEUE_CONNECTION` in `config/queue.php`).
 
-El **App Token** y la **Secret Key** están en el panel de Sumsub: **Developer Tools → App Tokens**.
+The **App Token** and **Secret Key** are in the Sumsub dashboard: **Developer Tools → App Tokens**.
 
 ---
 
-## Base de datos
+## Database
 
-El paquete carga las migraciones automáticamente. Ejecuta:
+The package loads migrations automatically. Run:
 
 ```bash
 php artisan migrate
 ```
 
-Si necesitas personalizar la migración antes de ejecutarla:
+To customize the migration before running it:
 
 ```bash
 php artisan vendor:publish --tag=sumsub-migrations
 php artisan migrate
 ```
 
-Tabla creada: `sumsub_applicants` (`user_id`, `applicant_id`, `level_name`, `review_status`, `review_answer`, `raw_data`).
+Table created: `sumsub_applicants` (`tenant_id`, `user_id`, `applicant_id`, `level_name`, `review_status`, `review_answer`, `raw_data`).
 
 ---
 
-## Uso
+## Usage
 
-### Crear un applicant
+### Create an applicant
 
 ```php
 use AnselmiDev\Sumsub\Facades\Sumsub;
@@ -83,15 +83,15 @@ use AnselmiDev\Sumsub\Facades\Sumsub;
 $applicant = Sumsub::createApplicant(auth()->user());
 ```
 
-Nivel de verificación opcional:
+Optional verification level:
 
 ```php
 $applicant = Sumsub::createApplicant(auth()->user(), 'advanced-kyc-level');
 ```
 
-Si el usuario ya tiene un applicant local, se devuelve el existente (idempotente). Si Sumsub responde **409** (applicant ya existe en Sumsub pero no en tu BD), el paquete lo recupera por `externalUserId` y lo sincroniza.
+If the user already has a local applicant, the existing record is returned (idempotent). If Sumsub responds with **409** (applicant exists in Sumsub but not in your DB), the package recovers it by `externalUserId` and syncs locally.
 
-### Generar token del SDK (frontend)
+### Generate SDK token (frontend)
 
 ```php
 $result = Sumsub::generateSdkToken(auth()->user());
@@ -102,36 +102,36 @@ $result = Sumsub::generateSdkToken(auth()->user());
 // ]
 ```
 
-Pásalo al [Sumsub Web SDK](https://developers.sumsub.com/web-sdk/):
+Pass it to the [Sumsub Web SDK](https://developers.sumsub.com/web-sdk/):
 
 ```js
 const snsWebSdkInstance = snsWebSdk
     .init(token, () => getNewAccessToken())
-    .withConf({ lang: 'es' })
+    .withConf({ lang: 'en' })
     .build();
 
 snsWebSdkInstance.launch('#sumsub-websdk-container');
 ```
 
-### Consultar estado
+### Check status
 
 ```php
 use AnselmiDev\Sumsub\Models\SumsubApplicant;
 
 $applicant = SumsubApplicant::where('user_id', auth()->id())->latest()->first();
 
-$applicant->isPending();
-$applicant->isCompleted();
-$applicant->isApproved();  // review_answer === 'GREEN'
-$applicant->isRejected();  // review_answer === 'RED'
-
-// Estado simplificado (pending | progress | completed | cancelled)
+// Simplified status (pending | progress | completed | cancelled)
 $applicant->status->value;
 $applicant->status->label();
 $applicant->status->color();
+
+$applicant->status->isPending();
+$applicant->status->isProgress();
+$applicant->status->isCompleted();
+$applicant->status->isCancelled();
 ```
 
-### Refrescar desde la API de Sumsub
+### Refresh from the Sumsub API
 
 ```php
 $applicant = Sumsub::refreshApplicant($applicant);
@@ -139,19 +139,19 @@ $applicant = Sumsub::refreshApplicant($applicant);
 
 ---
 
-## UI en la aplicación host
+## UI in the host application
 
-Este paquete **no incluye** componentes Livewire ni vistas Blade. Expone `KycVerificationState` para mapear el dominio al estado del widget:
+This package **does not include** Livewire components or Blade views. It exposes `KycVerificationState` to map domain state to widget state:
 
-| Origen | Método |
+| Source | Method |
 |---|---|
-| `SumsubApplicant` persistido | `KycVerificationState::fromApplicant($applicant)` o `$applicant->verificationState()` |
+| Persisted `SumsubApplicant` | `KycVerificationState::fromApplicant($applicant)` or `$applicant->verificationState()` |
 | `SumsubStatus` | `KycVerificationState::fromSumsubStatus($status)` |
-| Evento SDK (`reviewAnswer`) | `KycVerificationState::fromReviewAnswer('GREEN')` |
+| SDK event (`reviewAnswer`) | `KycVerificationState::fromReviewAnswer('GREEN')` |
 
-Estados del enum: `idle`, `loading`, `sdk_ready`, `progress`, `completed`, `cancelled`, `error`.
+Enum states: `idle`, `loading`, `sdk_ready`, `progress`, `completed`, `cancelled`, `error`.
 
-Ejemplo en Livewire:
+Example in Livewire:
 
 ```php
 use AnselmiDev\Sumsub\Contracts\KycRepositoryInterface;
@@ -180,24 +180,24 @@ public function startVerification(SumsubService $sumsub): void
 
 ## Webhooks
 
-Ruta registrada automáticamente:
+Route registered automatically:
 
 ```
 POST /webhooks/sumsub
 ```
 
-Configura esta URL en Sumsub (**Webhooks**). El controlador valida la firma HMAC-SHA256 con `SUMSUB_WEBHOOK_SECRET` y encola `ProcessSumsubWebhook`.
+Configure this URL in Sumsub (**Webhooks**). The controller validates the HMAC-SHA256 signature with `SUMSUB_WEBHOOK_SECRET` and queues `ProcessSumsubWebhook`.
 
-Excluye la ruta del CSRF si aplica:
+Exclude the route from CSRF if applicable:
 
 ```php
-// bootstrap/app.php o VerifyCsrfToken
-protected $except = [
+// bootstrap/app.php
+$middleware->validateCsrfTokens(except: [
     'webhooks/sumsub',
-];
+]);
 ```
 
-Personaliza URI y nombre de ruta en `.env`:
+Customize URI and route name in `.env`:
 
 ```env
 SUMSUB_WEBHOOK_ROUTE=webhooks/sumsub
@@ -206,15 +206,15 @@ SUMSUB_WEBHOOK_ROUTE_NAME=sumsub.webhook
 
 ---
 
-## Eventos
+## Events
 
-| Evento | Cuándo se dispara |
+| Event | When it fires |
 |---|---|
-| `ApplicantCreated` | Tras crear un applicant en Sumsub y guardarlo localmente |
-| `ApplicantStatusChanged` | Cada webhook que actualiza el registro local |
-| `ApplicantReviewed` | Cuando llega un resultado final (`GREEN` / `RED` / `RETRY`) |
+| `ApplicantCreated` | After creating an applicant in Sumsub and saving it locally |
+| `ApplicantStatusChanged` | Every webhook that updates the local record |
+| `ApplicantReviewed` | When a final result arrives (`GREEN` / `RED` / `RETRY`) |
 
-### Ejemplo: marcar KYC verificado al aprobar
+### Example: mark KYC verified on approval
 
 ```php
 use AnselmiDev\Sumsub\Events\ApplicantReviewed;
@@ -226,12 +226,12 @@ Event::listen(ApplicantReviewed::class, function (ApplicantReviewed $event) {
     }
 
     if ($event->isRejected()) {
-        // notificar, actualizar estado, etc.
+        // notify, update status, etc.
     }
 });
 ```
 
-Helpers en `ApplicantReviewed`:
+Helpers on `ApplicantReviewed`:
 
 ```php
 $event->applicant;
@@ -245,11 +245,11 @@ $event->needsRetry();
 
 ---
 
-## Reemplazar el repositorio (avanzado)
+## Replace the repository (advanced)
 
-Por defecto se usa `SumsubApplicantRepository` sobre la tabla `sumsub_applicants`.
+By default, `SumsubApplicantRepository` is used on the `sumsub_applicants` table.
 
-Para usar tus propios modelos, implementa `KycRepositoryInterface` y regístralo en `AppServiceProvider`:
+To use your own models, implement `KycRepositoryInterface` and register it in `AppServiceProvider`:
 
 ```php
 use AnselmiDev\Sumsub\Contracts\KycRepositoryInterface;
@@ -276,23 +276,43 @@ class MyCustomKycRepository implements KycRepositoryInterface
 
 ---
 
-## Flujo completo de KYC
+## SaaS / multi-tenant mode
 
+Enable in `.env`:
+
+```env
+SUMSUB_SAAS_MODE=true
 ```
-1. Usuario inicia verificación (UI en tu app)
-2. Backend: Sumsub::createApplicant($user)
-3. Backend: Sumsub::generateSdkToken($user)
-4. Frontend: Sumsub Web SDK con el token
-5. Usuario sube documentos a Sumsub
-6. Sumsub → POST /webhooks/sumsub
-7. Paquete valida firma y procesa ProcessSumsubWebhook
-8. Job actualiza SumsubApplicant y dispara ApplicantReviewed
-9. Tu listener actualiza el usuario / notifica
+
+Use `forTenant()` to scope applicants and optionally use per-tenant credentials:
+
+```php
+Sumsub::forTenant(
+    tenantId: $tenant->id,
+    appToken: $tenant->sumsub_app_token,   // optional
+    secretKey: $tenant->sumsub_secret_key, // optional
+)->createApplicant($user);
 ```
 
 ---
 
-## Referencia del Facade
+## Full KYC flow
+
+```
+1. User starts verification (UI in your app)
+2. Backend: Sumsub::createApplicant($user)
+3. Backend: Sumsub::generateSdkToken($user)
+4. Frontend: Sumsub Web SDK with the token
+5. User uploads documents to Sumsub
+6. Sumsub → POST /webhooks/sumsub
+7. Package validates signature and processes ProcessSumsubWebhook
+8. Job updates SumsubApplicant and dispatches ApplicantReviewed
+9. Your listener updates the user / sends notifications
+```
+
+---
+
+## Facade reference
 
 ```php
 use AnselmiDev\Sumsub\Facades\Sumsub;
@@ -300,62 +320,43 @@ use AnselmiDev\Sumsub\Facades\Sumsub;
 Sumsub::createApplicant(Authenticatable $user, ?string $levelName = null): SumsubApplicant
 Sumsub::generateSdkToken(Authenticatable $user, ?string $levelName = null): array
 Sumsub::refreshApplicant(SumsubApplicant $applicant): SumsubApplicant
+Sumsub::forTenant(string $tenantId, ?string $appToken = null, ?string $secretKey = null): SumsubService
 ```
 
 ---
 
-## Estructura del paquete
+## Package structure
 
 ```
 anselmi-dev/sumsub/
 ├── config/
-│   └── sumsub.php              # Config publicable
+│   └── sumsub.php              # Publishable config
 ├── database/
-│   └── migrations/             # Migraciones publicables
+│   └── migrations/             # Publishable migrations
 ├── routes/
-│   └── api.php                 # Ruta del webhook
+│   └── api.php                 # Webhook route
 ├── src/
-│   ├── Console/                # Comandos Artisan
+│   ├── Console/                # Artisan commands
 │   ├── Contracts/              # SumsubClientInterface, KycRepositoryInterface
-│   ├── DataTypes/              # SumsubStatus
+│   ├── DataTypes/              # SumsubStatus, KycVerificationState
 │   ├── Events/                 # ApplicantCreated, ApplicantReviewed, …
 │   ├── Facades/                # Sumsub
 │   ├── Http/
-│   │   ├── Client/             # SumsubClient (API REST firmada)
+│   │   ├── Client/             # SumsubClient (signed REST API)
 │   │   └── Webhooks/           # SumsubWebhookController
 │   ├── Jobs/                   # ProcessSumsubWebhook
 │   ├── Models/                 # SumsubApplicant
 │   ├── Repositories/           # SumsubApplicantRepository
 │   ├── Services/               # SumsubService
 │   └── SumsubServiceProvider.php
-└── tests/                      # (Pest / PHPUnit)
+└── tests/
 ```
 
-Convenciones y decisiones de diseño: ver [ARCHITECTURE.md](./ARCHITECTURE.md).
+Design conventions and decisions: see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ---
 
-## Desarrollo local
-
-### Path repository en Composer
-
-```json
-"repositories": [
-    {
-        "type": "path",
-        "url": "../packages/anselmi-dev/sumsub",
-        "options": { "symlink": true }
-    }
-]
-```
-
-```bash
-composer require anselmi-dev/sumsub:@dev
-```
-
-### Simular webhooks
-
-Solo en entornos no productivos:
+## Simulate webhooks (non-production only)
 
 ```bash
 php artisan sumsub:simulate-webhook --answer=GREEN --sync
@@ -365,15 +366,15 @@ php artisan sumsub:simulate-webhook 5cb56e8e0a975a35f333cb83 --answer=RED
 
 ---
 
-## Publicación de assets
+## Publishing assets
 
-| Tag | Comando | Destino |
+| Tag | Command | Destination |
 |---|---|---|
 | Config | `php artisan vendor:publish --tag=sumsub-config` | `config/sumsub.php` |
-| Migraciones | `php artisan vendor:publish --tag=sumsub-migrations` | `database/migrations/` |
+| Migrations | `php artisan vendor:publish --tag=sumsub-migrations` | `database/migrations/` |
 
 ---
 
-## Licencia
+## License
 
 MIT
