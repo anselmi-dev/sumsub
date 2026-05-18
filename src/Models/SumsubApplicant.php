@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AnselmiDev\Sumsub\Models;
 
+use AnselmiDev\Sumsub\DataTypes\KycVerificationState;
 use AnselmiDev\Sumsub\DataTypes\SumsubStatus;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property int                              $id
- * @property string|null                      $tenant_id
  * @property int|string                       $user_id
  * @property string                           $applicant_id
  * @property string                           $level_name
@@ -24,20 +24,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class SumsubApplicant extends Model
 {
-    CONST REVIEW_STATUS_PENDING = 'pending';
+    const REVIEW_STATUS_PENDING = 'pending';
 
-    CONST REVIEW_STATUS_COMPLETED = 'completed';
+    const REVIEW_STATUS_COMPLETED = 'completed';
 
-    CONST REVIEW_ANSWER_GREEN = 'GREEN';
+    const REVIEW_ANSWER_GREEN = 'GREEN';
 
-    CONST REVIEW_ANSWER_RED = 'RED';
+    const REVIEW_ANSWER_RED = 'RED';
 
-    CONST REVIEW_ANSWER_RETRY = 'RETRY';
+    const REVIEW_ANSWER_RETRY = 'RETRY';
 
     protected $table = 'sumsub_applicants';
 
     protected $fillable = [
-        'tenant_id',
         'user_id',
         'applicant_id',
         'level_name',
@@ -92,5 +91,13 @@ class SumsubApplicant extends Model
     public function isRejected(): bool
     {
         return $this->review_answer === self::REVIEW_ANSWER_RED;
+    }
+
+    /**
+     * Estado del widget de verificación derivado de review_status + review_answer.
+     */
+    public function verificationState(): KycVerificationState
+    {
+        return KycVerificationState::fromApplicant($this);
     }
 }

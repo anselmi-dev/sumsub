@@ -8,52 +8,14 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use AnselmiDev\Sumsub\Contracts\KycRepositoryInterface;
 use AnselmiDev\Sumsub\Contracts\SumsubClientInterface;
 use AnselmiDev\Sumsub\Events\ApplicantCreated;
-use AnselmiDev\Sumsub\Http\Client\SumsubClient;
 use AnselmiDev\Sumsub\Models\SumsubApplicant;
-use AnselmiDev\Sumsub\Repositories\SumsubApplicantRepository;
 
 class SumsubService
 {
     public function __construct(
         private readonly SumsubClientInterface $client,
         private readonly KycRepositoryInterface $repository,
-        private readonly ?string $tenantId = null,
     ) {}
-
-    /**
-     * Return a new instance scoped to a specific tenant with its own Sumsub credentials.
-     *
-     * Use this in SaaS mode when each tenant has its own Sumsub project.
-     * If all tenants share one Sumsub project, pass the global app_token / secret_key
-     * and only use $tenantId for data isolation.
-     *
-     * @example
-     *   Sumsub::forTenant(
-     *       tenantId:  $tenant->id,
-     *       appToken:  $tenant->sumsub_app_token,   // per-tenant Sumsub credentials
-     *       secretKey: $tenant->sumsub_secret_key,
-     *   )->createApplicant($user);
-     *
-     * @example (shared Sumsub project, data isolation only)
-     *   Sumsub::forTenant(tenantId: $tenant->id)->createApplicant($user);
-     */
-    public function forTenant(
-        string $tenantId,
-        ?string $appToken = null,
-        ?string $secretKey = null,
-    ): static {
-        $client = ($appToken !== null && $secretKey !== null)
-            ? new SumsubClient(
-                appToken: $appToken,
-                secretKey: $secretKey,
-                baseUrl: config('sumsub.base_url'),
-            )
-            : $this->client;
-
-        $repository = new SumsubApplicantRepository(tenantId: $tenantId);
-
-        return new static($client, $repository, $tenantId);
-    }
 
     /**
      * Create a Sumsub applicant for the given user, or return the existing one.
@@ -71,7 +33,7 @@ class SumsubService
         }
 
         $levelName       ??= config('sumsub.default_level_name');
-        $externalUserId    = $this->buildExternalUserId($user);
+        $externalUserId    = (string) $user->getAuthIdentifier();
 
         try {
             $response = $this->client->createApplicant(
@@ -89,7 +51,6 @@ class SumsubService
         }
 
         $applicant = $this->repository->create([
-            'tenant_id'     => $this->tenantId,
             'user_id'       => $user->getAuthIdentifier(),
             'applicant_id'  => $response['id'],
             'level_name'    => $response['levelName'] ?? $levelName,
@@ -136,23 +97,5 @@ class SumsubService
             'review_answer' => $response['review']['reviewAnswer'] ?? $applicant->review_answer,
             'raw_data'      => $response,
         ]);
-    }
-
-    /**
-     * Build the externalUserId sent to Sumsub.
-     *
-     * In SaaS mode the user ID is namespaced with the tenant ID to prevent
-     * collisions when multiple tenants share the same Sumsub project.
-     * In single-tenant mode the raw user ID is used.
-     */
-    private function buildExternalUserId(Authenticatable $user): string
-    {
-        $userId = (string) $user->getAuthIdentifier();
-
-        if (config('sumsub.saas_mode') && $this->tenantId !== null) {
-            return "{$this->tenantId}:{$userId}";
-        }
-
-        return $userId;
     }
 }

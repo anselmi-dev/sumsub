@@ -27,16 +27,7 @@ class SumsubWebhookController extends Controller
         /** @var array<string, mixed> $payload */
         $payload = $request->json()->all();
 
-        $connection = config('sumsub.queue_connection');
-        $queue = config('sumsub.queue_name');
-
-        $job = new ProcessSumsubWebhook($payload);
-
-        if ($connection !== null) {
-            $job->onConnection($connection)->onQueue($queue);
-        }
-
-        dispatch($job);
+        ProcessSumsubWebhook::dispatch($payload);
 
         return response('OK', 200);
     }
